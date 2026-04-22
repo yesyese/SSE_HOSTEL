@@ -655,7 +655,7 @@ const PaymentStep = ({
       <div className="p-4 rounded-xl mb-4 bg-primary-purple/10 text-primary-purple">
         <h4 className="font-bold mb-2">Payment Summary</h4>
         <div className="flex justify-between text-sm"><span>Total Amount:</span> <span>₹{getPrice(room).toLocaleString()}</span></div>
-        <div className="flex justify-between text-sm"><span>Advance Amount:</span> <span className="font-bold">₹{getAdvanceAmount(room).toLocaleString()}</span></div>
+        <div className="flex justify-between text-sm"><span>Advance Amount:</span> <span className="font-bold">₹{Number(details.amount || 0).toLocaleString()}</span></div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
