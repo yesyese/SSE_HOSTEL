@@ -608,6 +608,7 @@ export const createRoom = async (roomData, authToken = null) => {
     floor: roomData.floor,
     room_type: roomData.type,
     price_per_year: parseFloat(roomData.pricePerYear),
+    advance_amount: parseFloat(roomData.advanceAmount) || 0,
     gender_preference: roomData.genderPreference,
     room_dimensions: roomData.roomDimensions || `${roomData.dimensions?.width || 12}x${roomData.dimensions?.height || 8} ft`,
     description: roomData.description || '',
@@ -618,7 +619,7 @@ export const createRoom = async (roomData, authToken = null) => {
     facilities: facilitiesArray  // Use processed facility IDs, not raw roomData.facilities
   };
 
-  
+
 
   try {
     const response = await fetch(`${API_URL}/rooms`, {
@@ -718,6 +719,7 @@ export const updateRoom = async (roomId, roomData, authToken = null) => {
     floor: roomData.floor,
     room_type: roomData.type,
     price_per_year: parseFloat(roomData.pricePerYear),
+    advance_amount: parseFloat(roomData.advanceAmount) || 0,
     gender_preference: roomData.genderPreference,
     room_dimensions: roomData.roomDimensions || `${roomData.dimensions?.width || 12}x${roomData.dimensions?.height || 8} ft`,
     description: roomData.description || '',
@@ -728,7 +730,7 @@ export const updateRoom = async (roomId, roomData, authToken = null) => {
     facilities: facilitiesArray  // Use processed facility IDs, not raw roomData.facilities
   };
 
-  
+
 
   try {
     const response = await fetch(`${API_URL}/rooms/${roomId}`, {
