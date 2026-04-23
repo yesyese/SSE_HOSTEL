@@ -9,6 +9,7 @@ import Modal from '../components/ui/Modal';
 import ConfirmationModal from '../components/ui/ConfirmationModal';
 import { useAppContext } from '../context/AppContext';
 import { useToast } from '../context/ToastContext';
+import { normalizeYear, formatYearLabel } from '../apiService';
 import { Edit, Trash2, Save, X } from 'lucide-react';
 
 const StudentManagement = () => {
@@ -158,7 +159,7 @@ const StudentManagement = () => {
       full_name: student.full_name || student.name || '',
       Registration_number: student.Registration_number || student.registrationNumber || '',
       Branch: student.Branch || student.branch || student.department || '',
-      Year: student.Year || student.year || student.academic_year || '',
+      Year: normalizeYear(student.Year || student.year || student.academic_year || ''),
       gender: student.gender || student.Gender || '',
       email_address: student.email_address || student.email || '',
       mobile_number: student.mobile_number || student.mobile || student.phone || '',
@@ -282,7 +283,7 @@ const StudentManagement = () => {
               <TableCell className="font-semibold text-text-dark">{student.full_name || 'N/A'}</TableCell>
               <TableCell>{student.registrationNumber || student.Registration_number || 'N/A'}</TableCell>
               <TableCell>{student.Branch || student.department || 'N/A'}</TableCell>
-              <TableCell>{student.Year || student.academic_year || 'N/A'}</TableCell>
+              <TableCell>{formatYearLabel(student.Year || student.academic_year)}</TableCell>
               <TableCell>{student.gender || student.Gender || student.sex || 'N/A'}</TableCell>
               <TableCell>{student.email_address || 'N/A'}</TableCell>
               <TableCell>{student.mobile_number || student.phone || 'N/A'}</TableCell>
@@ -360,9 +361,10 @@ const StudentManagement = () => {
               onChange={handleEditFormChange}
             >
               <option value="">Select Year</option>
-              {['1st', '2nd', '3rd', '4th'].map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
+              <option value="1">1st Year</option>
+              <option value="2">2nd Year</option>
+              <option value="3">3rd Year</option>
+              <option value="4">4th Year</option>
             </Select>
             <Select
               label="Gender"

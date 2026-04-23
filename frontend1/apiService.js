@@ -910,6 +910,21 @@ throw error;
 };
 
 // Update student API (admin function)
+// DB stores Year as ENUM('1','2','3','4'). Normalize legacy ordinal values
+// ("1st","2nd","3rd","4th") before sending, so edits to older rows don't fail
+// with a MySQL ENUM truncation error.
+const YEAR_ORDINAL_TO_NUMERIC = { '1st': '1', '2nd': '2', '3rd': '3', '4th': '4' };
+const YEAR_NUMERIC_TO_LABEL = { '1': '1st Year', '2': '2nd Year', '3': '3rd Year', '4': '4th Year' };
+export const normalizeYear = (value) => {
+  if (value == null) return value;
+  const key = String(value).trim().toLowerCase();
+  return YEAR_ORDINAL_TO_NUMERIC[key] || value;
+};
+export const formatYearLabel = (value) => {
+  const normalized = normalizeYear(value);
+  return YEAR_NUMERIC_TO_LABEL[normalized] || value || 'N/A';
+};
+
 export const updateStudent = async (studentId, studentData, authToken = null) => {
   const headers = setAuthHeader({
     'Content-Type': 'application/json',
@@ -922,7 +937,7 @@ export const updateStudent = async (studentId, studentData, authToken = null) =>
     mobile_number: studentData.mobile_number,
     Registration_number: studentData.Registration_number,
     Branch: studentData.Branch,
-    Year: studentData.Year,
+    Year: normalizeYear(studentData.Year),
     concession_amount: parseFloat(studentData.custom_price) || 0
   };
 
