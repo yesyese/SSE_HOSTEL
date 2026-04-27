@@ -222,7 +222,7 @@ const BookingManagement = () => {
     const payuResp = await initiatePayUPayment(
       { booking_id: finalBookingId, amount: Number(amount) }, // correct signature
       authToken,
-      showToast // Pass the showToast function to show the redirect message
+      showSuccess // toast helper for the "redirecting…" message
     );
 
     if (payuResp?.payment_data) {
