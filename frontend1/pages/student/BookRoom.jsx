@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
-import { getRoomById } from '../../apiService';
+import { getRoomById, initiatePayUPayment, redirectToPayU } from '../../apiService';
+import { computeBookingMath } from '../../utils/bookingMath';
+import PaymentSummaryBlock from '../../components/PaymentSummaryBlock';
 import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
@@ -9,7 +11,7 @@ import RoomLayout from '../../components/student/RoomLayout';
 import Modal from '../../components/ui/Modal'; // Import the Modal component
 
 const BookRoom = () => {
-  const { createBooking } = useAppContext();
+  const { createBooking, currentUser, authToken } = useAppContext();
   const { roomId } = useParams();
   const navigate = useNavigate();
   const [room, setRoom] = useState(null);
@@ -23,12 +25,32 @@ const BookRoom = () => {
     check_in_date: '',
     emergency_contact_name: '',
     emergency_contact_mobile: '',
-    payment_amount: '5000',
+    payment_amount: '',
     payment_method: 'Online Payment',
     payment_type: 'Advance',
     notes: ''
   });
   const [submitting, setSubmitting] = useState(false);
+
+  // Single source of truth for all money math on this page.
+  const math = useMemo(() => computeBookingMath({
+    price_per_year: room?.price_per_year || room?.pricePerYear || 0,
+    concession_amount: currentUser?.concession_amount || 0,
+    total_amount_paid: 0,
+  }), [room, currentUser]);
+
+  // When the room loads, default Payment Amount to the 50% advance and
+  // sync Payment Type to whatever that amount maps to.
+  useEffect(() => {
+    if (math.payable > 0 && !bookingDetails.payment_amount) {
+      setBookingDetails(prev => ({
+        ...prev,
+        payment_amount: String(math.minAdvance),
+        payment_type: math.derivePaymentType(math.minAdvance),
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [math.payable]);
 
   useEffect(() => {
     const fetchRoom = async () => {
@@ -69,10 +91,37 @@ const BookRoom = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setBookingDetails(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setBookingDetails(prev => {
+      const next = { ...prev, [name]: value };
+      // Bidirectional sync between Payment Type and Payment Amount.
+      // Picking Full Payment fills in the full payable; picking Advance
+      // fills in the 50% advance. Editing the amount auto-derives the
+      // displayed type so the two never disagree.
+      if (name === 'payment_type') {
+        next.payment_amount = value === 'Full Payment'
+          ? String(math.payable)
+          : String(math.minAdvance);
+      } else if (name === 'payment_amount') {
+        next.payment_type = math.derivePaymentType(value);
+      }
+      return next;
+    });
+  };
+
+  const handleAmountBlur = (e) => {
+    const v = math.validate(e.target.value);
+    if (!v.ok && v.snapTo !== undefined) {
+      setBookingDetails(prev => ({
+        ...prev,
+        payment_amount: String(v.snapTo),
+        payment_type: math.derivePaymentType(v.snapTo),
+      }));
+      setModalContent({
+        title: 'Amount Adjusted',
+        message: `${v.reason}. Amount has been adjusted to ₹${v.snapTo.toLocaleString()}.`,
+      });
+      setIsModalOpen(true);
+    }
   };
 
   const handleConfirmBooking = async () => {
@@ -101,6 +150,15 @@ const BookRoom = () => {
       return;
     }
 
+    // Final amount validation against the canonical math
+    const amountNum = parseFloat(bookingDetails.payment_amount);
+    const v = math.validate(amountNum);
+    if (!v.ok) {
+      setModalContent({ title: 'Invalid Amount', message: v.reason });
+      setIsModalOpen(true);
+      return;
+    }
+
     try {
       setSubmitting(true);
 
@@ -110,15 +168,43 @@ const BookRoom = () => {
         check_in_date: bookingDetails.check_in_date,
         emergency_contact_name: bookingDetails.emergency_contact_name,
         emergency_contact_mobile: bookingDetails.emergency_contact_mobile,
-        payment_amount: parseFloat(bookingDetails.payment_amount),
+        payment_amount: amountNum,
         payment_method: bookingDetails.payment_method,
         payment_type: bookingDetails.payment_type,
         notes: bookingDetails.notes
       };
 
-
+      // 1) Create the booking
       const response = await createBooking(bookingData);
+      const newBookingId = response?.booking_id || response?.id;
 
+      // 2) For Online Payment, immediately initiate PayU for the chosen
+      //    amount and redirect to the gateway (mirrors the admin wizard).
+      //    Honors the student's Advance/Full selection instead of dropping
+      //    them at My Bookings with a generic Pay button.
+      if (bookingDetails.payment_method === 'Online Payment' && newBookingId) {
+        try {
+          const payuResp = await initiatePayUPayment(
+            { booking_id: newBookingId, amount: amountNum },
+            authToken,
+          );
+          if (payuResp?.payment_data) {
+            redirectToPayU(payuResp.payment_data);
+            return; // browser navigates away
+          }
+        } catch (payuErr) {
+          console.error('PayU initiation failed:', payuErr);
+          setModalContent({
+            title: 'Booking saved — payment pending',
+            message: 'Your booking was created but the payment gateway could not be reached. Please retry payment from My Bookings.',
+          });
+          setIsModalOpen(true);
+          navigate('/student/my-bookings');
+          return;
+        }
+      }
+
+      // Fallback for offline methods or missing booking_id
       setModalContent({
         title: 'Booking Confirmed',
         message: 'Your booking has been successfully confirmed!'
@@ -300,6 +386,34 @@ const BookRoom = () => {
                 required
               />
               <div className="space-y-2">
+                <label className="block text-sm font-semibold text-text-dark">Payment Type</label>
+                <select
+                  name="payment_type"
+                  value={bookingDetails.payment_type}
+                  onChange={handleInputChange}
+                  className="w-full p-3 border border-input-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-purple focus:border-transparent"
+                >
+                  <option value="Advance">Advance (50% of payable)</option>
+                  <option value="Full Payment">Full Payment</option>
+                </select>
+              </div>
+              <div>
+                <Input
+                  label="Payment Amount (₹)"
+                  name="payment_amount"
+                  type="number"
+                  value={bookingDetails.payment_amount}
+                  onChange={handleInputChange}
+                  onBlur={handleAmountBlur}
+                  min={math.minAdvance}
+                  max={math.payable}
+                  required
+                />
+                <p className="text-xs text-text-medium mt-1">
+                  Minimum advance: ₹{math.minAdvance.toLocaleString()} (50% of payable). Maximum: ₹{math.payable.toLocaleString()}.
+                </p>
+              </div>
+              <div className="space-y-2">
                 <label className="block text-sm font-semibold text-text-dark">Payment Method</label>
                 <select
                   name="payment_method"
@@ -310,17 +424,14 @@ const BookRoom = () => {
                   <option value="Online Payment">Online Payment</option>
                 </select>
               </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-text-dark">Payment Type</label>
-                <select
-                  name="payment_type"
-                  value={bookingDetails.payment_type}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border border-input-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-purple focus:border-transparent"
-                >
-                  <option value="Advance">Advance</option>
-                </select>
-              </div>
+              <PaymentSummaryBlock
+                booking={{
+                  price_per_year: room?.price_per_year || room?.pricePerYear || 0,
+                  concession_amount: currentUser?.concession_amount || 0,
+                  total_amount_paid: 0,
+                }}
+                amountNow={bookingDetails.payment_amount}
+              />
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-text-dark">Notes (Optional)</label>
                 <textarea
