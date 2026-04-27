@@ -16,11 +16,18 @@ const PayUPayment = ({ booking, onPaymentInitiated, isOpen, onClose }) => {
   // Single source of truth for all money math on this modal.
   const math = computeBookingMath(booking);
 
-  const [paymentAmount, setPaymentAmount] = useState(math.pending);
+  // Default the input to the minimum advance for first-time payments
+  // so students aren't forced into a "Full Payment" suggestion. For any
+  // booking that already has at least one successful payment, default to
+  // the remaining balance (most common follow-up case).
+  const isFirstPayment = math.totalPaid === 0;
+  const suggestedAmount = isFirstPayment ? math.minAdvance : math.pending;
+
+  const [paymentAmount, setPaymentAmount] = useState(suggestedAmount);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errors, setErrors] = useState({});
 
-  const minPayment = 1; // any positive amount allowed (advance rule applies only at booking time)
+  const minPayment = isFirstPayment ? math.minAdvance : 1;
   const maxPayment = math.pending;
 
   const validatePayment = () => {
@@ -139,6 +146,11 @@ const PayUPayment = ({ booking, onPaymentInitiated, isOpen, onClose }) => {
               placeholder="Enter amount"
               className={errors.amount ? 'border-red-500' : ''}
             />
+            <p className="mt-1 text-xs text-gray-500">
+              {isFirstPayment
+                ? `Minimum advance: ₹${math.minAdvance.toLocaleString()} (50% of payable). Maximum: ₹${math.pending.toLocaleString()}.`
+                : `Pay any amount up to ₹${math.pending.toLocaleString()}.`}
+            </p>
             {errors.amount && (
               <p className="mt-1 text-sm text-red-600 flex items-center">
                 <AlertCircle className="w-4 h-4 mr-1" />
@@ -153,7 +165,16 @@ const PayUPayment = ({ booking, onPaymentInitiated, isOpen, onClose }) => {
               Quick Select:
             </label>
             <div className="flex flex-wrap gap-2">
-              {math.pending >= 5000 && (
+              {isFirstPayment && (
+                <Button
+                  variant="secondary"
+                  onClick={() => setQuickAmount(math.minAdvance)}
+                  className="text-xs px-3 py-1"
+                >
+                  Advance (₹{math.minAdvance.toLocaleString()})
+                </Button>
+              )}
+              {!isFirstPayment && math.pending >= 5000 && (
                 <Button
                   variant="secondary"
                   onClick={() => setQuickAmount(5000)}
@@ -162,22 +183,13 @@ const PayUPayment = ({ booking, onPaymentInitiated, isOpen, onClose }) => {
                   ₹5,000
                 </Button>
               )}
-              {math.pending >= 10000 && (
+              {!isFirstPayment && math.pending >= 10000 && (
                 <Button
                   variant="secondary"
                   onClick={() => setQuickAmount(10000)}
                   className="text-xs px-3 py-1"
                 >
                   ₹10,000
-                </Button>
-              )}
-              {math.pending >= 15000 && (
-                <Button
-                  variant="secondary"
-                  onClick={() => setQuickAmount(15000)}
-                  className="text-xs px-3 py-1"
-                >
-                  ₹15,000
                 </Button>
               )}
               <Button
