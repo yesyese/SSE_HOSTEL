@@ -8,6 +8,8 @@ import Button from '../components/ui/Button';
 import { useAppContext } from '../context/AppContext';
 import { useToast } from '../context/ToastContext';
 import { initiatePayUPayment, redirectToPayU, API_URL } from '../apiService';
+import { computeBookingMath } from '../utils/bookingMath';
+import PaymentSummaryBlock from '../components/PaymentSummaryBlock';
 import {
   Eye, Edit, Ban, PlusCircle, ArrowRight, User, Bed, ListChecks, CreditCard, Loader2,
   ArrowLeft
@@ -599,17 +601,42 @@ const PaymentStep = ({
   const { authToken } = useAppContext();
   const { showSuccess, showError } = useToast ? useToast() : { showSuccess: () => { }, showError: () => { } };
 
-  const getPrice = (r) => r?.pricePerYear || r?.price_per_year || 0;
-  const getAdvanceAmount = (r) => r?.advanceAmount || r?.advance_amount || 0;
+  // Build a synthetic booking-shaped object so the shared helper applies
+  // the same total/concession/payable math used by every other screen.
+  const bookingForMath = {
+    price_per_year: room?.pricePerYear || room?.price_per_year || 0,
+    concession_amount: student?.concession_amount || 0,
+    total_amount_paid: 0,
+  };
+  const math = computeBookingMath(bookingForMath);
 
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [details, setDetails] = useState({
-    amount: getAdvanceAmount(room) || Math.round(getPrice(room) * 0.2),
+    amount: math.minAdvance,
     paymentMethod: 'Online Payment',
-    paymentType: 'Advance'
+    paymentType: math.derivePaymentType(math.minAdvance),
   });
 
-  const handleChange = (e) => setDetails({ ...details, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setDetails(prev => {
+      const next = { ...prev, [name]: value };
+      if (name === 'amount') next.paymentType = math.derivePaymentType(value);
+      return next;
+    });
+  };
+
+  const handleAmountBlur = (e) => {
+    const v = math.validate(e.target.value);
+    if (!v.ok && v.snapTo !== undefined) {
+      setDetails(prev => ({
+        ...prev,
+        amount: v.snapTo,
+        paymentType: math.derivePaymentType(v.snapTo),
+      }));
+      showError?.(`${v.reason}. Adjusted automatically.`);
+    }
+  };
 
   const handleLocalPaymentSubmit = async () => {
     try {
@@ -652,24 +679,39 @@ const PaymentStep = ({
   return (
     <div>
       <h3 className="font-bold text-lg mb-2 text-center">Step 4: Payment Details</h3>
-      <div className="p-4 rounded-xl mb-4 bg-primary-purple/10 text-primary-purple">
-        <h4 className="font-bold mb-2">Payment Summary</h4>
-        <div className="flex justify-between text-sm"><span>Total Amount:</span> <span>₹{getPrice(room).toLocaleString()}</span></div>
-        <div className="flex justify-between text-sm"><span>Advance Amount:</span> <span className="font-bold">₹{Number(details.amount || 0).toLocaleString()}</span></div>
+      <div className="mb-4">
+        <PaymentSummaryBlock booking={bookingForMath} amountNow={details.amount} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Input label="Payment Amount*" name="amount" type="number" value={details.amount} onChange={handleChange} />
+        <div>
+          <Input
+            label="Payment Amount*"
+            name="amount"
+            type="number"
+            value={details.amount}
+            onChange={handleChange}
+            onBlur={handleAmountBlur}
+            min={math.minAdvance}
+            max={math.payable}
+          />
+          <p className="text-xs text-text-medium mt-1">
+            Minimum advance: ₹{math.minAdvance.toLocaleString()} (50% of payable)
+          </p>
+        </div>
         <Select label="Payment Method*" name="paymentMethod" value={details.paymentMethod} onChange={handleChange}>
           <option>Online Payment</option>
           <option>Cash</option>
           <option>Bank Transfer</option>
           <option>Cheque</option>
         </Select>
-        <Select label="Payment Type*" name="paymentType" value={details.paymentType} onChange={handleChange}>
-          <option>Advance</option>
-          <option>Full Payment</option>
-        </Select>
+        <div>
+          <label className="block text-sm font-semibold text-text-dark mb-1">Payment Type</label>
+          <div className="w-full p-3 border border-input-border rounded-lg bg-gray-50 text-text-dark">
+            {details.paymentType}
+          </div>
+          <p className="text-xs text-text-medium mt-1">Auto-derived from amount</p>
+        </div>
       </div>
 
       {details.paymentMethod === 'Online Payment' && (

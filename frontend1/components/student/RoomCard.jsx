@@ -27,7 +27,9 @@ const RoomCard = ({ room }) => {
   const seatsLeft = totalCots - occupiedCots;
 
   const price = room.pricePerYear || room.price_per_year || room.price || 0;
-  const advance = room.advanceAmount || room.advance_amount || Math.floor(price * 0.1);
+  // Backend always returns advance_amount (default 5000). No client-side fallback
+  // formula — would conflict with the booking-time 50% rule.
+  const advance = room.advanceAmount || room.advance_amount || 0;
 
   // Map facility IDs to names, with fallback to default facilities
   const facilities = (room.facilities || []).map(f => {

@@ -4,6 +4,7 @@ import Card from '../components/ui/Card';
 import StatCard from '../components/ui/StatCard';
 import { useAppContext } from '../context/AppContext';
 import { getAdminDashboardSummary } from '../apiService';
+import { computeBookingMath } from '../utils/bookingMath';
 import { Table, TableRow, TableCell } from '../components/ui/Table';
 import StatusTag from '../components/ui/StatusTag';
 import { useNavigate } from 'react-router-dom';
@@ -60,14 +61,9 @@ const Dashboard = () => {
           booking.status === 'CONFIRMED';
 
         if (isActiveBooking) {
-          const amount =
-            booking.total_amount ??
-            booking.totalAmount ??
-            booking.amount ??
-            booking.fee ??
-            booking.cost ??
-            0;
-          return acc + (Number(amount) || 0);
+          // Use the canonical payable: room price minus per-student concession.
+          const m = computeBookingMath(booking);
+          return acc + m.payable;
         }
         return acc;
       }, 0);

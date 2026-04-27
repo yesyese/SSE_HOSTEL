@@ -5,34 +5,29 @@ import { initiatePayUPayment, redirectToPayU } from '../../apiService';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Modal from '../ui/Modal';
+import PaymentSummaryBlock from '../PaymentSummaryBlock';
+import { computeBookingMath } from '../../utils/bookingMath';
 import { CreditCard, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 
 const PayUPayment = ({ booking, onPaymentInitiated, isOpen, onClose }) => {
   const { authToken } = useAppContext();
   const { showSuccess, showError, showWarning } = useToast();
-  const [paymentAmount, setPaymentAmount] = useState(booking?.pending_balance || 0);
+
+  // Single source of truth for all money math on this modal.
+  const math = computeBookingMath(booking);
+
+  const [paymentAmount, setPaymentAmount] = useState(math.pending);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Calculate payment details
-  const totalAmount = booking?.total_amount || 0;
-  const concessionAmount = booking?.concession_amount || 0;
-  const totalAmountPaid = booking?.total_amount_paid || 0;
-  const pendingBalance = booking?.pending_balance || 0;
-  const minPayment = 1; // Any amount greater than 0 is allowed
-  const maxPayment = pendingBalance; // Can't pay more than pending balance
+  const minPayment = 1; // any positive amount allowed (advance rule applies only at booking time)
+  const maxPayment = math.pending;
 
   const validatePayment = () => {
-    const newErrors = {};
-
-    if (!paymentAmount || paymentAmount <= 0) {
-      newErrors.amount = 'Payment amount must be greater than zero';
-    } else if (paymentAmount > maxPayment) {
-      newErrors.amount = `Payment amount cannot exceed pending balance of ₹${maxPayment}`;
-    }
-
+    const v = math.validate(paymentAmount);
+    const newErrors = v.ok ? {} : { amount: v.reason };
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return v.ok;
   };
 
   const handlePaymentInitiation = async () => {
@@ -121,31 +116,12 @@ const PayUPayment = ({ booking, onPaymentInitiated, isOpen, onClose }) => {
       size="md"
     >
       <div className="space-y-6">
-        {/* Booking Summary */}
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <h3 className="font-semibold text-gray-900 mb-2">Booking Summary</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Booking ID:</span>
-              <span className="font-mono">{booking.booking_id || booking.id}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Total Amount:</span>
-              <span className="font-semibold">₹{totalAmount.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Concession Amount:</span>
-              <span className="text-blue-600">₹{concessionAmount.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Amount Paid:</span>
-              <span className="text-green-600">₹{totalAmountPaid.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between border-t pt-2">
-              <span className="text-gray-600 font-medium">Pending Balance:</span>
-              <span className="font-bold text-red-600">₹{pendingBalance.toLocaleString()}</span>
-            </div>
+        {/* Booking Summary - shared block */}
+        <div>
+          <div className="text-sm text-gray-600 mb-2">
+            Booking ID: <span className="font-mono">{booking.booking_id || booking.id}</span>
           </div>
+          <PaymentSummaryBlock booking={booking} amountNow={paymentAmount} />
         </div>
 
         {/* Payment Amount Input */}
@@ -177,7 +153,7 @@ const PayUPayment = ({ booking, onPaymentInitiated, isOpen, onClose }) => {
               Quick Select:
             </label>
             <div className="flex flex-wrap gap-2">
-              {pendingBalance >= 5000 && (
+              {math.pending >= 5000 && (
                 <Button
                   variant="secondary"
                   onClick={() => setQuickAmount(5000)}
@@ -186,7 +162,7 @@ const PayUPayment = ({ booking, onPaymentInitiated, isOpen, onClose }) => {
                   ₹5,000
                 </Button>
               )}
-              {pendingBalance >= 10000 && (
+              {math.pending >= 10000 && (
                 <Button
                   variant="secondary"
                   onClick={() => setQuickAmount(10000)}
@@ -195,7 +171,7 @@ const PayUPayment = ({ booking, onPaymentInitiated, isOpen, onClose }) => {
                   ₹10,000
                 </Button>
               )}
-              {pendingBalance >= 15000 && (
+              {math.pending >= 15000 && (
                 <Button
                   variant="secondary"
                   onClick={() => setQuickAmount(15000)}
@@ -206,10 +182,10 @@ const PayUPayment = ({ booking, onPaymentInitiated, isOpen, onClose }) => {
               )}
               <Button
                 variant="secondary"
-                onClick={() => setQuickAmount(pendingBalance)}
+                onClick={() => setQuickAmount(math.pending)}
                 className="text-xs px-3 py-1 bg-green-100 text-green-700 hover:bg-green-200"
               >
-                Full Amount (₹{pendingBalance.toLocaleString()})
+                Full Amount (₹{math.pending.toLocaleString()})
               </Button>
             </div>
           </div>

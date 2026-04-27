@@ -7,6 +7,7 @@ import { useAppContext } from "../../context/AppContext";
 import { Fan, Bath, Tv, Wifi } from "lucide-react";
 // Add these imports to your existing BookingCard.jsx
 import PayUPayment from "../payu/PayUPayment"; // Adjust path as needed
+import { computeBookingMath } from "../../utils/bookingMath";
 import { CreditCard } from "lucide-react";
 
 const BookingCard = ({ booking }) => {
@@ -25,14 +26,17 @@ const BookingCard = ({ booking }) => {
   const status = booking.status || "Processing";
   const checkInDate = booking.check_in_date;
   const academicYear = booking.academic_year;
-  const totalAmountPaid = booking.total_amount_paid || 0;
-  const pendingBalance = booking.pending_balance || 0;
+
+  // Single source of truth for all money math.
+  const math = computeBookingMath(booking);
+  const totalAmountPaid = math.totalPaid;
+  const pendingBalance = math.pending;
 
   // Extract room details from embedded room object
   const roomNumber = room?.room_number || 'N/A';
   const roomType = room?.room_type || 'Standard';
   const floor = room?.floor || 'N/A';
-  const totalAmount = room?.price_per_year || 0;
+  const totalAmount = math.totalPrice;
 
   // Find the specific cot from the room's cots array
   const assignedCot = room?.cots?.find(cot => cot.cot_id === cotId);
@@ -65,15 +69,11 @@ const BookingCard = ({ booking }) => {
       setShowPaymentModal(false);
     };
 
-    // Calculate pending balance more reliably
-    const totalAmount = booking.total_amount || booking.totalAmount || booking.payment_amount || room.price_per_year || 0;
-    const paidAmount = booking.amount_paid || booking.amountPaid || booking.total_amount_paid || 0;
-    const pendingBalance = booking.balance || booking.pending_balance || (totalAmount - paidAmount);
-
-
+    // Use the same math helper used everywhere else.
+    const innerMath = computeBookingMath(booking);
 
     // Only show PayU payment option if there's a pending balance
-    if (pendingBalance <= 0) {
+    if (innerMath.pending <= 0) {
       return null;
     }
 
@@ -86,16 +86,11 @@ const BookingCard = ({ booking }) => {
           leftIcon={<CreditCard className="w-4 h-4" />}
         >
           {userRole === 'admin' ? 'Process Payment' : 'Pay with PayU'}
-          {pendingBalance > 0 ? ` (₹${pendingBalance.toLocaleString()})` : ""}
+          {innerMath.pending > 0 ? ` (₹${innerMath.pending.toLocaleString()})` : ""}
         </Button>
 
         <PayUPayment
-          booking={{
-            ...booking,
-            pending_balance: pendingBalance,
-            total_amount: totalAmount,
-            total_amount_paid: paidAmount
-          }}
+          booking={booking}
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
           onPaymentInitiated={handlePaymentInitiated}
@@ -190,31 +185,31 @@ const BookingCard = ({ booking }) => {
               </div>
             </div>
           </div>
-          <div className={`border-t border-subtle-border pt-4 grid grid-cols-2 ${(booking.concession_amount || 0) > 0 ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-4`}>
+          <div className={`border-t border-subtle-border pt-4 grid grid-cols-2 ${math.concession > 0 ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-4`}>
             <div>
               <p className="text-sm text-text-medium">Total Amount</p>
               <p className="font-bold">
-                ₹{totalAmount.toLocaleString()}
+                ₹{math.totalPrice.toLocaleString()}
               </p>
             </div>
-            {(booking.concession_amount || 0) > 0 && (
+            {math.concession > 0 && (
               <div>
                 <p className="text-sm text-text-medium">Concession</p>
                 <p className="font-bold text-blue-600">
-                  ₹{(booking.concession_amount || 0).toLocaleString()}
+                  ₹{math.concession.toLocaleString()}
                 </p>
               </div>
             )}
             <div>
               <p className="text-sm text-text-medium">Amount Paid</p>
               <p className="font-bold text-green-600">
-                ₹{totalAmountPaid.toLocaleString()}
+                ₹{math.totalPaid.toLocaleString()}
               </p>
             </div>
             <div>
               <p className="text-sm text-text-medium">Balance Due</p>
               <p className="font-bold text-accent-orange">
-                ₹{booking.pending_balance.toLocaleString()}
+                ₹{math.pending.toLocaleString()}
               </p>
             </div>
             <div>

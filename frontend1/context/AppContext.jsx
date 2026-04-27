@@ -490,6 +490,7 @@ export const AppProvider = ({ children }) => {
       currentUser,
       isAuthenticated,
       userRole,
+      authToken,
       // Actions
       login,
       logout,
@@ -518,6 +519,7 @@ export const AppProvider = ({ children }) => {
       currentUser,
       isAuthenticated,
       userRole,
+      authToken,
       // Action dependencies
       login,
       logout,
