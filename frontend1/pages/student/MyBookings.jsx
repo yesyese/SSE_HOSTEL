@@ -6,6 +6,7 @@ import BookingCard from '../../components/student/BookingCard';
 import Card from '../../components/ui/Card';
 import Select from '../../components/ui/Select';
 import { Calendar, CheckCircle, AlertCircle, XCircle, IndianRupee } from 'lucide-react';
+import { computeBookingMath } from '../../utils/bookingMath';
 
 const MyBookings = () => {
   const { bookings, payments, currentUser, fetchBookings, isLoading, authToken } = useAppContext();
@@ -77,25 +78,27 @@ const MyBookings = () => {
       // Calculate successful payments by counting individual successful payment records.
       const successfulPaymentsCount = payments?.filter(p => p.status === 'Successful').length || 0;
 
-      // Use dashboard data from backend if available, otherwise fallback to local calculations
-      if (dashboardData) {
-        return {
-          total: activeBookings.length, // Always use the frontend-calculated active bookings count
-          successfulPayments: successfulPaymentsCount, // Use the more accurate frontend calculation
-          totalBalanceDue: dashboardData.total_balance_due || 0,
-          concessionAmount: dashboardData.concession_amount || 0,
-          confirmed: activeBookings?.filter(b => b?.status === 'Active' || b?.status === 'Pending Check-in')?.length || 0,
-        };
-      }
+      // Always derive money totals via the shared helper so this matches every
+      // BookingCard / PayU modal exactly. The dashboard endpoint can lag or
+      // return stale values; the per-booking recomputed pending_balance is the
+      // single source of truth.
+      const totalBalanceDue = activeBookings.reduce(
+        (sum, b) => sum + computeBookingMath(b).pending,
+        0,
+      );
+      // Concession is a per-student value, not per-booking. Take it from the
+      // first booking (all rows for the same student carry the same number).
+      const concessionAmount = activeBookings[0]
+        ? computeBookingMath(activeBookings[0]).concession
+        : 0;
 
-      // Fallback to local calculations if dashboard data not available
       return {
         total: activeBookings.length,
-        confirmed: activeBookings?.filter(b => b?.status === 'Active' || b?.status === 'Pending Check-in')?.length || 0,
-        totalBalanceDue: studentBookings?.reduce((sum, b) => sum + (parseFloat(b?.pending_balance) || 0), 0) || 0,
+        confirmed: activeBookings.filter(b => b?.status === 'Active' || b?.status === 'Pending Check-in').length,
+        totalBalanceDue,
         successfulPayments: successfulPaymentsCount,
-        concessionAmount: studentBookings?.reduce((sum, b) => sum + (parseFloat(b?.concession_amount) || 0), 0) || 0,
-        checkedIn: activeBookings?.filter(b => b?.status === 'Active')?.length || 0,
+        concessionAmount,
+        checkedIn: activeBookings.filter(b => b?.status === 'Active').length,
       };
     } catch (error) {
       console.error("Error calculating booking stats:", error);
@@ -104,10 +107,11 @@ const MyBookings = () => {
         confirmed: 0,
         totalBalanceDue: 0,
         successfulPayments: 0,
+        concessionAmount: 0,
         checkedIn: 0
       };
     }
-  }, [studentBookings, dashboardData, payments]);
+  }, [studentBookings, payments]);
 
   const bookingStatuses = ['All Bookings', 'Active', 'Pending Check-in', 'Completed', 'Cancelled'];
 

@@ -77,6 +77,16 @@ const BookingCard = ({ booking }) => {
       return null;
     }
 
+    // For a fresh booking (no successful payment yet), advertise the
+    // advance amount on the button so it matches what the modal pre-fills.
+    // For follow-up payments, show the remaining balance.
+    const isFirstPayment = innerMath.totalPaid === 0;
+    const buttonAmount = isFirstPayment ? innerMath.minAdvance : innerMath.pending;
+    const buttonLabel = userRole === 'admin' ? 'Process Payment' : 'Pay with PayU';
+    const amountSuffix = isFirstPayment
+      ? ` (Advance ₹${buttonAmount.toLocaleString()})`
+      : ` (₹${buttonAmount.toLocaleString()})`;
+
     return (
       <>
         <Button
@@ -85,8 +95,7 @@ const BookingCard = ({ booking }) => {
           onClick={() => setShowPaymentModal(true)}
           leftIcon={<CreditCard className="w-4 h-4" />}
         >
-          {userRole === 'admin' ? 'Process Payment' : 'Pay with PayU'}
-          {innerMath.pending > 0 ? ` (₹${innerMath.pending.toLocaleString()})` : ""}
+          {buttonLabel}{amountSuffix}
         </Button>
 
         <PayUPayment
