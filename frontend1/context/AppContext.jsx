@@ -485,6 +485,10 @@ export const AppProvider = ({ children }) => {
       bookings,
       payments,
       loading,
+      // Boolean alias for any-loading-right-now. Keeps consumers that
+      // expect a boolean (`if (isLoading)`) working without forcing every
+      // file to know that `loading` is actually an object keyed by feature.
+      isLoading: Object.values(loading).some(Boolean),
       isInitializing,
       facilities,
       currentUser,
@@ -496,6 +500,7 @@ export const AppProvider = ({ children }) => {
       logout,
       registerStudent,
       fetchRooms,
+      addRoom,
       createRoom: addRoom,
       deleteStudent,
       updateStudent,
@@ -505,6 +510,12 @@ export const AppProvider = ({ children }) => {
       addPayment,
       fetchPayments,
       fetchUserProfile,
+      // Backend has no student-self-update endpoint yet; expose a clear
+      // failure instead of letting callers silently swallow `undefined`.
+      // Remove this stub once a real /students/me PUT lands.
+      updateUserProfile: async () => {
+        throw new Error('Profile editing is not yet available. Please contact your warden.');
+      },
       getFacilities
     }),
     [

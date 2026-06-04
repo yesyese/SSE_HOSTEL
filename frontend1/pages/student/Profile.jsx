@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { useToast } from '../../context/ToastContext';
 import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
@@ -7,6 +8,7 @@ import { User, Mail, Phone, MapPin, Calendar, Edit2, Save, X } from 'lucide-reac
 
 const Profile = () => {
     const { currentUser, updateUserProfile, isLoading } = useAppContext();
+    const { showError } = useToast();
     const [isEditing, setIsEditing] = useState(false);
     const [profileData, setProfileData] = useState({
         full_name: currentUser?.full_name || '',
@@ -31,12 +33,11 @@ const Profile = () => {
 
     const handleSaveProfile = async () => {
         try {
-            if (updateUserProfile) {
-                await updateUserProfile(profileData);
-                setIsEditing(false);
-            }
+            await updateUserProfile(profileData);
+            setIsEditing(false);
         } catch (error) {
             console.error('Error updating profile:', error);
+            showError(error?.message || 'Failed to update profile.');
         }
     };
 

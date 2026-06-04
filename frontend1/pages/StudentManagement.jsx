@@ -13,7 +13,7 @@ import { normalizeYear, formatYearLabel } from '../apiService';
 import { Edit, Trash2, Save, X } from 'lucide-react';
 
 const StudentManagement = () => {
-  const { students, deleteStudent, updateStudent, fetchStudents, isLoading } = useAppContext();
+  const { students, deleteStudent, updateStudent, fetchStudents, isLoading, loading } = useAppContext();
   const { addToast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('All');
@@ -35,13 +35,13 @@ const StudentManagement = () => {
   // Fetch students if the list is empty
   useEffect(() => {
     // Only fetch if students array is empty and not already loading
-    if (students.length === 0 && fetchStudents && !isLoading?.students) {
+    if (students.length === 0 && fetchStudents && !loading?.students) {
       fetchStudents().catch(error => {
         // The error is already handled in AppContext, but we can log it here too
         console.error('❌ StudentManagement - Error during fetchStudents call:', error);
       });
     }
-  }, [students.length, fetchStudents, isLoading?.students]);
+  }, [students.length, fetchStudents, loading?.students]);
 
   // Reset fetch flag when students are received
   useEffect(() => {
