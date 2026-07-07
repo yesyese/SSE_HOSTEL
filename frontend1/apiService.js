@@ -219,6 +219,41 @@ export const adminLogin = async (username, password) => {
 /**
  * Initiate PayU payment for a booking and handle redirect
  */
+// ------------------------------------------------------------------
+// Payment receipt (PDF download)
+// ------------------------------------------------------------------
+// Streams the PDF blob and triggers a browser save-as dialog. The endpoint
+// path differs by role; guard is server-side either way.
+const downloadReceiptFrom = async (endpointPath, token) => {
+  const response = await fetch(`${API_URL}${endpointPath}`, {
+    headers: setAuthHeader({}, token),
+  });
+  if (!response.ok) {
+    throw new Error(`Receipt download failed with HTTP ${response.status}`);
+  }
+  const blob = await response.blob();
+  // Prefer the server-provided filename, else fall back to a generic name.
+  const cd = response.headers.get('Content-Disposition') || '';
+  const match = cd.match(/filename\s*=\s*"?([^"]+)"?/i);
+  const filename = match ? match[1] : 'receipt.pdf';
+
+  const objectUrl = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  window.URL.revokeObjectURL(objectUrl);
+};
+
+export const downloadOwnReceipt = (paymentId, token) =>
+  downloadReceiptFrom(`/payments/me/${paymentId}/receipt`, token);
+
+export const downloadAdminReceipt = (paymentId, token) =>
+  downloadReceiptFrom(`/admin/payments/${paymentId}/receipt`, token);
+
+
 export const initiatePayUPayment = async (paymentData, authToken = null) => {
   const token = authToken || localStorage.getItem('authToken');
 

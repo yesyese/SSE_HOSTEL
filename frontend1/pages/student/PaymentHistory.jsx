@@ -6,7 +6,9 @@ import { Table, TableRow, TableCell } from '../../components/ui/Table';
 import StatusTag from '../../components/ui/StatusTag';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
-import { IndianRupee, Landmark, Receipt } from 'lucide-react';
+import { IndianRupee, Landmark, Receipt, Download } from 'lucide-react';
+import { downloadOwnReceipt } from '../../apiService';
+import { useToast } from '../../context/ToastContext';
 
 // Helper function to safely format a date string
 const safeDateFormatter = (dateString) => {
@@ -24,12 +26,34 @@ const safeDateFormatter = (dateString) => {
 
 
 const PaymentHistory = () => {
-  const { payments, bookings, fetchPayments, fetchBookings, loading } = useAppContext();
+  const { payments, bookings, fetchPayments, fetchBookings, loading, authToken } = useAppContext();
+  const toast = useToast?.();
+  const [downloadingId, setDownloadingId] = useState(null);
   const [filters, setFilters] = useState({
     type: 'All Types',
     startDate: '',
     endDate: '',
   });
+
+  const isSuccessful = (status) => {
+    if (!status) return false;
+    const s = String(status).toLowerCase();
+    return s === 'successful' || s === 'success' || s === 'completed' || s === 'paid';
+  };
+
+  const handleDownloadReceipt = async (paymentId) => {
+    if (!paymentId) return;
+    setDownloadingId(paymentId);
+    try {
+      await downloadOwnReceipt(paymentId, authToken);
+    } catch (err) {
+      console.error('Receipt download failed:', err);
+      const msg = err?.message || 'Could not download receipt.';
+      toast?.showError ? toast.showError(msg) : window.alert(msg);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const filteredPayments = useMemo(() => {
     return (payments || []).filter(p => {
@@ -113,19 +137,38 @@ const PaymentHistory = () => {
 
       <Card>
         <h2 className="text-xl font-bold text-text-dark mb-4">Payment Records ({filteredPayments.length})</h2>
-        <Table headers={['Receipt No.', 'Room', 'Amount', 'Type', 'Method', 'Status', 'Date', 'Booking Ref']}>
-          {filteredPayments.map(p => (
-            <TableRow key={p.payment_id || p.id}>
-              <TableCell className="font-mono text-xs">{p.receipt_number || p.payment_id}</TableCell>
-              <TableCell>{p.room_number || 'N/A'}</TableCell>
-              <TableCell className="font-semibold text-text-dark">₹{(p.amount || 0).toLocaleString()}</TableCell>
-              <TableCell><StatusTag status={p.payment_type || p.type} /></TableCell>
-              <TableCell>{p.payment_method || p.method}</TableCell>
-              <TableCell><StatusTag status={p.status || 'Paid'} /></TableCell>
-              <TableCell>{safeDateFormatter(p.received_date || p.date)}</TableCell>
-              <TableCell className="font-mono text-xs">{p.booking_id || p.bookingId}</TableCell>
-            </TableRow>
-          ))}
+        <Table headers={['Receipt No.', 'Room', 'Amount', 'Type', 'Method', 'Status', 'Date', 'Booking Ref', 'Receipt']}>
+          {filteredPayments.map(p => {
+            const paid = isSuccessful(p.status);
+            const isDownloading = downloadingId === (p.payment_id || p.id);
+            return (
+              <TableRow key={p.payment_id || p.id}>
+                <TableCell className="font-mono text-xs">{p.receipt_number || p.payment_id}</TableCell>
+                <TableCell>{p.room_number || 'N/A'}</TableCell>
+                <TableCell className="font-semibold text-text-dark">₹{(p.amount || 0).toLocaleString()}</TableCell>
+                <TableCell><StatusTag status={p.payment_type || p.type} /></TableCell>
+                <TableCell>{p.payment_method || p.method}</TableCell>
+                <TableCell><StatusTag status={p.status || 'Paid'} /></TableCell>
+                <TableCell>{safeDateFormatter(p.received_date || p.date)}</TableCell>
+                <TableCell className="font-mono text-xs">{p.booking_id || p.bookingId}</TableCell>
+                <TableCell>
+                  {paid ? (
+                    <button
+                      onClick={() => handleDownloadReceipt(p.payment_id || p.id)}
+                      disabled={isDownloading}
+                      title="Download receipt"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-purple text-white text-xs font-semibold hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <Download size={14} />
+                      {isDownloading ? 'Preparing…' : 'PDF'}
+                    </button>
+                  ) : (
+                    <span className="text-text-medium text-xs">—</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </Table>
         {filteredPayments.length === 0 && <p className="text-center p-8 text-text-medium">No payments match your filters.</p>}
       </Card>
