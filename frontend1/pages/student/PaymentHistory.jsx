@@ -156,11 +156,11 @@ const PaymentHistory = () => {
                     <button
                       onClick={() => handleDownloadReceipt(p.payment_id || p.id)}
                       disabled={isDownloading}
-                      title="Download receipt"
+                      title="Opens the receipt in a new tab where you can Save as PDF or print"
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-purple text-white text-xs font-semibold hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <Download size={14} />
-                      {isDownloading ? 'Preparing…' : 'PDF'}
+                      {isDownloading ? 'Opening…' : 'Receipt'}
                     </button>
                   ) : (
                     <span className="text-text-medium text-xs">—</span>

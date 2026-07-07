@@ -220,31 +220,35 @@ export const adminLogin = async (username, password) => {
  * Initiate PayU payment for a booking and handle redirect
  */
 // ------------------------------------------------------------------
-// Payment receipt (PDF download)
+// Payment receipt — opens rendered HTML in a new tab so the user can
+// Save-as-PDF / Print from the browser. Backend guards server-side.
 // ------------------------------------------------------------------
-// Streams the PDF blob and triggers a browser save-as dialog. The endpoint
-// path differs by role; guard is server-side either way.
 const downloadReceiptFrom = async (endpointPath, token) => {
+  // fetch() with auth headers (window.open cannot pass Authorization),
+  // then serve the HTML as a Blob URL that the browser opens in a new tab.
   const response = await fetch(`${API_URL}${endpointPath}`, {
     headers: setAuthHeader({}, token),
   });
   if (!response.ok) {
-    throw new Error(`Receipt download failed with HTTP ${response.status}`);
+    let msg = `Receipt failed (HTTP ${response.status})`;
+    try {
+      const err = await response.json();
+      if (err?.detail) msg = err.detail;
+    } catch (_) { /* body not json */ }
+    throw new Error(msg);
   }
-  const blob = await response.blob();
-  // Prefer the server-provided filename, else fall back to a generic name.
-  const cd = response.headers.get('Content-Disposition') || '';
-  const match = cd.match(/filename\s*=\s*"?([^"]+)"?/i);
-  const filename = match ? match[1] : 'receipt.pdf';
-
-  const objectUrl = window.URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = objectUrl;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  window.URL.revokeObjectURL(objectUrl);
+  const html = await response.text();
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const blobUrl = window.URL.createObjectURL(blob);
+  // Open in a new tab. The template's toolbar has the "Save as PDF / Print"
+  // button which triggers window.print() -> browser's PDF engine.
+  const win = window.open(blobUrl, '_blank');
+  if (!win) {
+    // Pop-up blocker fell in the way — fall back to same-window navigation.
+    window.location.href = blobUrl;
+  }
+  // Revoke after a short delay so the new tab has time to load.
+  setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000);
 };
 
 export const downloadOwnReceipt = (paymentId, token) =>
