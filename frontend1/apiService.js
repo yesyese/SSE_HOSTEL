@@ -1155,41 +1155,84 @@ export const createPayment = async (paymentData, authToken = null) => {
 };
 
 // Send OTP for password reset
-export const sendOTP = async (email,cause) => {
-  const response = await fetch(`${API_URL}/api/auth/send-otp`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ email_address: email,cause }),
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'Failed to send OTP');
+// Uses AbortController for an explicit 30s timeout (Railway can cold-start
+// slower than the browser's default fetch timeout) and distinguishes
+// network-layer failures ("Unable to reach the server") from server-side
+// rejections ("<backend detail>") so students can tell us which one is
+// happening.
+export const sendOTP = async (email, cause) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  let response;
+  try {
+    response = await fetch(`${API_URL}/api/auth/send-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email_address: email, cause }),
+      signal: controller.signal,
+    });
+  } catch (netErr) {
+    // TypeError('Failed to fetch') / abort — network unreachable, DNS, CORS,
+    // aborted request, or student is on the wrong URL entirely.
+    console.error('[sendOTP] network error', netErr);
+    if (netErr.name === 'AbortError') {
+      throw new Error('The server took too long to respond. Please retry in a moment.');
+    }
+    throw new Error(
+      'Unable to reach the server. Check your internet connection and make sure ' +
+      'you opened this site from hostel.sseptp.org (not an old bookmark), then try again.'
+    );
+  } finally {
+    clearTimeout(timer);
   }
-  
+
+  if (!response.ok) {
+    let detail;
+    try {
+      detail = (await response.json())?.detail;
+    } catch (_) { /* body not JSON */ }
+    throw new Error(detail || `Failed to send OTP (HTTP ${response.status}).`);
+  }
   return response.json();
 };
 
-// Reset password with OTP
+// Reset password with OTP.
+// Same defensive timeout + error-classification approach as sendOTP so we
+// can tell if a student's failure is client-network vs server-side.
 export const resetPassword = async (email, otp, newPassword) => {
-  const response = await fetch(`${API_URL}/api/auth/reset-password`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email_address: email,
-      otp: otp,
-      new_password: newPassword,
-    }),
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'Failed to reset password');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  let response;
+  try {
+    response = await fetch(`${API_URL}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email_address: email,
+        otp: otp,
+        new_password: newPassword,
+      }),
+      signal: controller.signal,
+    });
+  } catch (netErr) {
+    console.error('[resetPassword] network error', netErr);
+    if (netErr.name === 'AbortError') {
+      throw new Error('The server took too long to respond. Please retry.');
+    }
+    throw new Error(
+      'Unable to reach the server. Check your internet connection and make ' +
+      'sure you are on hostel.sseptp.org, then try again.'
+    );
+  } finally {
+    clearTimeout(timer);
   }
-  
+
+  if (!response.ok) {
+    let detail;
+    try {
+      detail = (await response.json())?.detail;
+    } catch (_) { /* body not JSON */ }
+    throw new Error(detail || `Failed to reset password (HTTP ${response.status}).`);
+  }
   return response.json();
 };
