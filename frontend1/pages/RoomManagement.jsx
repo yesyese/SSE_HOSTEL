@@ -590,7 +590,7 @@ const RoomManagement = () => {
     });
   }, [rooms, searchTerm, typeFilter, floorFilter, genderFilter]);
 
-  const roomTypes = useMemo(() => ['All', 'Normal', 'Deluxe', 'Super Deluxe'], []);
+  const roomTypes = useMemo(() => ['All', 'Normal', 'Deluxe', 'Super Deluxe', 'Elite Suite'], []);
 
   const floors = useMemo(() => {
     // Gender-based floor restrictions
@@ -745,12 +745,23 @@ const RoomManagement = () => {
             value={newRoomData.roomNumber || ''}
             onChange={handleInputChange}
           />
-          <Input
+          <Select
             label="Floor*"
             name="floor"
             value={newRoomData.floor || ''}
             onChange={handleInputChange}
-          />
+          >
+            <option value="" disabled>Select floor</option>
+            <option value="GROUND">Ground</option>
+            <option value="FIRST">First</option>
+            <option value="SECOND">Second</option>
+            <option value="THIRD">Third</option>
+            <option value="FOURTH">Fourth</option>
+            <option value="CB1">CB1</option>
+            <option value="CB2">CB2</option>
+            <option value="CB3">CB3</option>
+            <option value="CB4">CB4</option>
+          </Select>{/* Backend Rooms.floor is a MySQL ENUM; free text here causes a 500 on INSERT */}
           <Select
             label="Room Type*"
             name="type"
@@ -761,6 +772,7 @@ const RoomManagement = () => {
             <option value="Normal">Normal</option>
             <option value="Deluxe">Deluxe</option>
             <option value="Super Deluxe">Super Deluxe</option>
+            <option value="Elite Suite">Elite Suite</option>
           </Select>
           <Input
             label="Total Cots*"

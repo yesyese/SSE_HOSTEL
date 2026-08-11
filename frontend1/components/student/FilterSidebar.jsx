@@ -58,6 +58,7 @@ const FilterSidebar = ({ filters, setFilters }) => {
         { label: 'Deluxe', value: 'Deluxe' },
         { label: 'Super Deluxe', value: 'Super Deluxe' },
         { label: 'Ultra Deluxe', value: 'Ultra Deluxe' },
+        { label: 'Elite Suite', value: 'Elite Suite' },
     ];
 
     const handlePillChange = (field, value) => {

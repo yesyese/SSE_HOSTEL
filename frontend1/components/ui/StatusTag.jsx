@@ -21,6 +21,7 @@ const StatusTag = ({ status }) => {
     'Normal': 'bg-blue-100 text-blue-800',
     'Deluxe': 'bg-purple-100 text-purple-800',
     'Super Deluxe': 'bg-indigo-100 text-indigo-800',
+    'Elite Suite': 'bg-pink-100 text-pink-800',
     'default': 'bg-slate-200 text-slate-700'
   };
 
