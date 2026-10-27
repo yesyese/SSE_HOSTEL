@@ -87,6 +87,10 @@ const Register = () => {
       setError("Password must be at least 6 characters.");
       return;
     }
+    if (!/^[0-9]{10,15}$/.test(formData.mobile_number)) {
+      setError("Mobile number must be 10-15 digits, numbers only.");
+      return;
+    }
 
     setIsLoading(true);
 
@@ -188,6 +192,10 @@ const Register = () => {
               value={formData.mobile_number}
               placeholder="Enter 10-digit mobile number"
               onChange={handleChange}
+              inputMode="numeric"
+              pattern="[0-9]{10,15}"
+              maxLength={15}
+              title="Mobile number must be 10-15 digits"
               required
             />
             <Select
